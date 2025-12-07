@@ -3,6 +3,7 @@ package parser
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"ozoner/internal/models"
 
@@ -160,18 +161,116 @@ func parseProductItem(item interface{}) *models.ProductSearchResult {
 		return nil // ID is required
 	}
 
-	// Extract name
-	if name, ok := getString(itemMap, "name", "title", "productName"); ok {
-		product.Name = name
+	// Extract name - try multiple keys and filter promo texts
+	nameKeys := []string{"name", "title", "productName", "heading", "productTitle", "itemName"}
+	var name string
+	var nameFound bool
+
+	for _, key := range nameKeys {
+		if n, ok := getString(itemMap, key); ok && n != "" {
+			// Filter out promo texts
+			if !IsPromoText(n) {
+				name = n
+				nameFound = true
+				break
+			}
+		}
 	}
 
-	// Extract price
-	if price, ok := getFloat(itemMap, "price", "finalPrice", "priceWithDiscount"); ok {
+	// If no good name found, try nested structures
+	if !nameFound {
+		// Try to find name in nested data structures
+		if data, ok := itemMap["data"].(map[string]interface{}); ok {
+			for _, key := range nameKeys {
+				if n, ok := getString(data, key); ok && n != "" {
+					if !IsPromoText(n) {
+						name = n
+						nameFound = true
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// Try deep search as last resort
+	if !nameFound {
+		if result := deepSearchInMap(itemMap, nameKeys, 3); result != nil {
+			if nameStr, ok := result.(string); ok && nameStr != "" {
+				if !IsPromoText(nameStr) {
+					name = nameStr
+					nameFound = true
+				}
+			}
+		}
+	}
+
+	if nameFound {
+		product.Name = strings.TrimSpace(name)
+	}
+
+	// Extract price - validate and handle different formats
+	priceKeys := []string{"price", "finalPrice", "priceWithDiscount", "currentPrice", "salePrice"}
+	var price float64
+	var priceFound bool
+
+	for _, key := range priceKeys {
+		if p, ok := getFloat(itemMap, key); ok {
+			if ValidatePrice(p) {
+				price = p
+				priceFound = true
+				break
+			}
+		}
+	}
+
+	// If price not found or invalid, try nested structures
+	if !priceFound {
+		if data, ok := itemMap["data"].(map[string]interface{}); ok {
+			for _, key := range priceKeys {
+				if p, ok := getFloat(data, key); ok {
+					if ValidatePrice(p) {
+						price = p
+						priceFound = true
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// Try price object structure (price.value, price.amount, etc.)
+	if !priceFound {
+		if priceObj, ok := itemMap["price"].(map[string]interface{}); ok {
+			if p, ok := getFloat(priceObj, "value", "amount", "final", "current"); ok {
+				if ValidatePrice(p) {
+					price = p
+					priceFound = true
+				}
+			}
+		}
+	}
+
+	if priceFound {
 		product.Price = price
 	}
 
-	// Extract old price
-	if oldPrice, ok := getFloat(itemMap, "oldPrice", "originalPrice", "priceWithoutDiscount"); ok {
+	// Extract old price - validate
+	oldPriceKeys := []string{"oldPrice", "originalPrice", "priceWithoutDiscount", "regularPrice"}
+	var oldPrice float64
+	var oldPriceFound bool
+
+	for _, key := range oldPriceKeys {
+		if op, ok := getFloat(itemMap, key); ok {
+			if ValidatePrice(op) {
+				oldPrice = op
+				oldPriceFound = true
+				break
+			}
+		}
+	}
+
+	if oldPriceFound {
 		product.OldPrice = &oldPrice
 	}
 

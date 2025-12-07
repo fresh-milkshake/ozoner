@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"ozoner/internal/parser"
 	ozoner "ozoner/pkg/ozoner"
 
 	"github.com/charmbracelet/log"
@@ -58,8 +59,8 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	// Собираем 40 товаров
-	targetCount := 40
+	// Собираем 10 товаров для быстрого теста (можно увеличить до 40)
+	targetCount := 10
 	allProducts := make([]ozoner.Product, 0, targetCount)
 
 	fmt.Printf("Начинаем поиск товаров по запросу 'техника'...\n")
@@ -180,11 +181,16 @@ func main() {
 			detailedProducts = append(detailedProducts, product)
 		} else {
 			// Объединяем данные: детали имеют приоритет, но сохраняем то, что было в поиске
-			if detailedProduct.Name == "" {
-				detailedProduct.Name = product.Name
+			// НЕ перезаписываем детальные данные промо-текстами из поиска
+			if detailedProduct.Name == "" || parser.IsPromoText(detailedProduct.Name) {
+				if product.Name != "" && !parser.IsPromoText(product.Name) {
+					detailedProduct.Name = product.Name
+				}
 			}
-			if detailedProduct.Price == 0 {
-				detailedProduct.Price = product.Price
+			if detailedProduct.Price == 0 || !parser.ValidatePrice(detailedProduct.Price) {
+				if product.Price > 0 && parser.ValidatePrice(product.Price) {
+					detailedProduct.Price = product.Price
+				}
 			}
 			if detailedProduct.URL == "" {
 				detailedProduct.URL = product.URL

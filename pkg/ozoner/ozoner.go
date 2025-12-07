@@ -584,22 +584,377 @@ func (o *Ozoner) getProductWithBrowser(ctx context.Context, productID string) (*
 
 	productURL := fmt.Sprintf("https://www.ozon.ru/product/%s/", productID)
 
+	log.Info("Navigating to product page", "url", productURL)
 	if err := o.browserClient.Navigate(ctx, productURL); err != nil {
 		return nil, fmt.Errorf("failed to navigate: %w", err)
 	}
 
 	// Wait for page to load
-	time.Sleep(2 * time.Second)
+	log.Debug("Waiting for page to load")
+	time.Sleep(3 * time.Second)
 
-	// Try to extract JSON data
-	script := "window.__APP_STATE__ || window.__INITIAL_STATE__ || {}"
-	_, extractErr := o.browserClient.ExtractJSONData(ctx, script)
+	// Scroll to ensure content is loaded
+	if err := o.browserClient.ScrollToBottom(ctx); err != nil {
+		log.Warn("Failed to scroll page", "err", err)
+	}
+	time.Sleep(1 * time.Second)
+
+	// Enhanced script to extract product data from page
+	script := `(function() {
+		try {
+			var result = {
+				states: [],
+				productData: null,
+				widgetStates: null,
+				url: window.location.href
+			};
+			
+			// Try window states
+			if (window.__APP_STATE__) {
+				result.states.push({name: '__APP_STATE__', data: window.__APP_STATE__});
+			}
+			if (window.__INITIAL_STATE__) {
+				result.states.push({name: '__INITIAL_STATE__', data: window.__INITIAL_STATE__});
+			}
+			if (window.__NEXT_DATA__) {
+				result.states.push({name: '__NEXT_DATA__', data: window.__NEXT_DATA__});
+			}
+			if (window.widgetStates) {
+				result.widgetStates = window.widgetStates;
+			}
+			
+			// Try to find product data in script tags
+			try {
+				var allScripts = document.querySelectorAll('script');
+				for (var i = 0; i < allScripts.length; i++) {
+					var script = allScripts[i];
+					var text = script.textContent || script.innerHTML;
+					
+					// Look for JSON data in script content
+					if (text.includes('widgetStates') || text.includes('product') || text.includes('webProduct')) {
+						try {
+							// Try multiple patterns to extract JSON
+							var patterns = [
+								/window\.__APP_STATE__\s*=\s*(\{[\s\S]*?\});/,
+								/window\.widgetStates\s*=\s*(\{[\s\S]*?\});/,
+								/var\s+widgetStates\s*=\s*(\{[\s\S]*?\});/,
+								/"widgetStates"\s*:\s*(\[[\s\S]*?\]|\{[\s\S]*?\})/,
+								/\{[\s\S]{500,100000}"widgetStates"[\s\S]{500,100000}\}/
+							];
+							
+							for (var p = 0; p < patterns.length; p++) {
+								var match = text.match(patterns[p]);
+								if (match && match[1]) {
+									try {
+										var data = JSON.parse(match[1]);
+										if (data && (data.widgetStates || data.product || data.webProductHeading || data.webProductPrice)) {
+											result.productData = data;
+											break;
+										}
+									} catch(e) {
+										// Try to fix common JSON issues
+										try {
+											var fixed = match[1].replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
+											var data = JSON.parse(fixed);
+											if (data && (data.widgetStates || data.product || data.webProductHeading || data.webProductPrice)) {
+												result.productData = data;
+												break;
+											}
+										} catch(e2) {}
+									}
+								}
+							}
+						} catch(e) {}
+					}
+					
+					// Try application/json scripts
+					if (script.type === 'application/json' || script.getAttribute('type') === 'application/json') {
+						try {
+							var data = JSON.parse(text);
+							if (data && (data.widgetStates || data.product || data.webProductHeading)) {
+								result.productData = data;
+								break;
+							}
+						} catch(e) {}
+					}
+				}
+			} catch(e) {}
+			
+			return JSON.stringify(result);
+		} catch(e) {
+			return JSON.stringify({error: e.message, stack: e.stack});
+		}
+	})()`
+
+	// Extract JSON data
+	log.Debug("Extracting JSON data from product page")
+	jsonData, extractErr := o.browserClient.ExtractJSONData(ctx, script)
 	if extractErr != nil {
-		return nil, fmt.Errorf("failed to extract data: %w", extractErr)
+		log.Warn("Failed to extract JSON data, trying HTML parsing", "err", extractErr)
+		// Fallback to HTML parsing
+		return o.parseProductFromHTML(ctx, productID)
 	}
 
-	// Parse the data (would need to implement JSON parsing)
-	return nil, fmt.Errorf("browser-based product parsing not fully implemented, use API method")
+	if jsonData == "" || jsonData == "null" {
+		log.Warn("No JSON data extracted, trying HTML parsing")
+		return o.parseProductFromHTML(ctx, productID)
+	}
+
+	// Parse extracted JSON data
+	var extractedData map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonData), &extractedData); err != nil {
+		log.Warn("Failed to parse extracted JSON, trying HTML parsing", "err", err)
+		return o.parseProductFromHTML(ctx, productID)
+	}
+
+	// Try to find product data in extracted structure
+	var dataToParse map[string]interface{}
+
+	if productData, ok := extractedData["productData"].(map[string]interface{}); ok && productData != nil {
+		dataToParse = productData
+	} else if states, ok := extractedData["states"].([]interface{}); ok {
+		// Try each state
+		for _, state := range states {
+			if stateMap, ok := state.(map[string]interface{}); ok {
+				if stateData, ok := stateMap["data"].(map[string]interface{}); ok {
+					dataToParse = stateData
+					break
+				}
+			}
+		}
+	} else if widgetStates, ok := extractedData["widgetStates"]; ok && widgetStates != nil {
+		if widgetStatesMap, ok := widgetStates.(map[string]interface{}); ok {
+			dataToParse = widgetStatesMap
+		} else if widgetStatesArray, ok := widgetStates.([]interface{}); ok {
+			// Try to find product in widget states array
+			for _, widget := range widgetStatesArray {
+				if widgetMap, ok := widget.(map[string]interface{}); ok {
+					if product, ok := widgetMap["product"].(map[string]interface{}); ok {
+						dataToParse = product
+						break
+					}
+					if data, ok := widgetMap["data"].(map[string]interface{}); ok {
+						if product, ok := data["product"].(map[string]interface{}); ok {
+							dataToParse = product
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// If we found data, try to parse it
+	if dataToParse != nil {
+		log.Debug("Found product data in JSON, parsing")
+		product, err := parser.ParseProduct(dataToParse)
+		if err == nil && product != nil {
+			// Ensure product ID is set
+			if product.ID == "" {
+				product.ID = productID
+			}
+			if product.URL == "" {
+				product.URL = productURL
+			}
+			log.Info("Product parsed successfully from JSON", "id", product.ID, "name", product.Name)
+			return product, nil
+		}
+		log.Warn("Failed to parse product from JSON data", "err", err)
+	}
+
+	// Fallback to HTML parsing
+	log.Info("Falling back to HTML parsing")
+	return o.parseProductFromHTML(ctx, productID)
+}
+
+// parseProductFromHTML parses product data from HTML using goquery
+func (o *Ozoner) parseProductFromHTML(ctx context.Context, productID string) (*models.Product, error) {
+	log.Debug("Parsing product from HTML", "product_id", productID)
+
+	html, err := o.browserClient.GetHTML(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get HTML: %w", err)
+	}
+
+	if len(html) == 0 {
+		return nil, fmt.Errorf("empty HTML content")
+	}
+
+	log.Debug("HTML extracted", "html_size", len(html))
+
+	product := &models.Product{
+		ID:         productID,
+		URL:        fmt.Sprintf("https://www.ozon.ru/product/%s/", productID),
+		Currency:   "RUB",
+		Attributes: make(map[string]interface{}),
+		InStock:    true, // Default assumption
+	}
+
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse HTML: %w", err)
+	}
+
+	// Extract name from h1 or product heading widget
+	nameSelectors := []string{
+		"h1",
+		"[data-widget='webProductHeading'] h1",
+		"[data-widget='webProductHeading']",
+		".product-title",
+		"[class*='product'][class*='title']",
+		"[class*='heading']",
+	}
+
+	var name string
+	for _, selector := range nameSelectors {
+		name = strings.TrimSpace(doc.Find(selector).First().Text())
+		if name != "" && !parser.IsPromoText(name) {
+			break
+		}
+	}
+
+	if name != "" {
+		product.Name = name
+		log.Debug("Extracted product name", "name", name)
+	}
+
+	// Extract description
+	descSelectors := []string{
+		"[data-widget='webProductDescription']",
+		"[data-widget='webProductInfo']",
+		".product-description",
+		"[class*='description']",
+		"[class*='Description']",
+	}
+
+	var description string
+	for _, selector := range descSelectors {
+		description = strings.TrimSpace(doc.Find(selector).First().Text())
+		if description != "" {
+			break
+		}
+	}
+
+	if description != "" {
+		product.Description = description
+		log.Debug("Extracted product description", "length", len(description))
+	}
+
+	// Extract price
+	priceSelectors := []string{
+		"[data-widget='webProductPrice']",
+		"[class*='price'][class*='final']",
+		"[class*='Price']",
+		".product-price",
+	}
+
+	var priceText string
+	for _, selector := range priceSelectors {
+		priceText = strings.TrimSpace(doc.Find(selector).First().Text())
+		if priceText != "" {
+			break
+		}
+	}
+
+	if priceText != "" {
+		if price, ok := parser.CleanPriceText(priceText); ok {
+			product.Price = price
+			log.Debug("Extracted product price", "price", price)
+		}
+	}
+
+	// Extract rating
+	ratingSelectors := []string{
+		"[data-widget='webProductRating']",
+		"[class*='rating']",
+		"[data-rating]",
+	}
+
+	for _, selector := range ratingSelectors {
+		ratingText := strings.TrimSpace(doc.Find(selector).First().Text())
+		if ratingText == "" {
+			ratingText = doc.Find(selector).First().AttrOr("data-rating", "")
+		}
+		if ratingText != "" {
+			// Extract number from rating text
+			ratingMatch := regexp.MustCompile(`(\d+\.?\d*)`).FindString(ratingText)
+			if ratingMatch != "" {
+				if rating, err := strconv.ParseFloat(ratingMatch, 64); err == nil && rating > 0 && rating <= 5 {
+					product.Rating = rating
+					log.Debug("Extracted product rating", "rating", rating)
+					break
+				}
+			}
+		}
+	}
+
+	// Extract images
+	imgSelectors := []string{
+		"[data-widget='webProductGallery'] img",
+		".product-gallery img",
+		"[class*='gallery'] img",
+		"img[src*='multimedia']",
+	}
+
+	var images []string
+	seenImages := make(map[string]bool)
+	for _, selector := range imgSelectors {
+		doc.Find(selector).Each(func(i int, s *goquery.Selection) {
+			imgSrc, exists := s.Attr("src")
+			if !exists {
+				imgSrc, exists = s.Attr("data-src")
+			}
+			if exists && imgSrc != "" && !seenImages[imgSrc] {
+				if !strings.HasPrefix(imgSrc, "http") {
+					if strings.HasPrefix(imgSrc, "//") {
+						imgSrc = "https:" + imgSrc
+					} else {
+						imgSrc = "https://www.ozon.ru" + imgSrc
+					}
+				}
+				images = append(images, imgSrc)
+				seenImages[imgSrc] = true
+			}
+		})
+		if len(images) > 0 {
+			break
+		}
+	}
+
+	if len(images) > 0 {
+		product.Images = images
+		log.Debug("Extracted product images", "count", len(images))
+	}
+
+	// Extract brand and category from breadcrumbs or attributes
+	breadcrumbSelectors := []string{
+		"[data-widget='webBreadCrumbs'] a",
+		".breadcrumbs a",
+		"[class*='breadcrumb'] a",
+	}
+
+	var breadcrumbs []string
+	doc.Find(strings.Join(breadcrumbSelectors, ", ")).Each(func(i int, s *goquery.Selection) {
+		text := strings.TrimSpace(s.Text())
+		if text != "" && text != "Главная" && text != "Каталог" {
+			breadcrumbs = append(breadcrumbs, text)
+		}
+	})
+
+	if len(breadcrumbs) > 0 {
+		// Last breadcrumb is usually category
+		product.Category = breadcrumbs[len(breadcrumbs)-1]
+		// Brand might be in breadcrumbs too
+		for _, bc := range breadcrumbs {
+			if !strings.Contains(strings.ToLower(bc), "категория") && !strings.Contains(strings.ToLower(bc), "каталог") {
+				product.Brand = bc
+				break
+			}
+		}
+	}
+
+	log.Info("Product parsed from HTML", "id", product.ID, "name", product.Name, "has_description", product.Description != "", "has_price", product.Price > 0)
+	return product, nil
 }
 
 // GetProductReviews retrieves reviews for a product
@@ -801,28 +1156,44 @@ func (o *Ozoner) parseProductsFromHTML(html string) []models.Product {
 			}
 
 			var name string
+			var nameFound bool
 			for _, ns := range nameSelectors {
-				name = s.Find(ns).First().Text()
+				name = strings.TrimSpace(s.Find(ns).First().Text())
 				if name == "" {
-					name, _ = s.Find(ns).First().Attr("title")
+					name = strings.TrimSpace(s.Find(ns).First().AttrOr("title", ""))
 				}
-				if name != "" {
+				// Filter out promo texts
+				if name != "" && !parser.IsPromoText(name) {
+					nameFound = true
 					break
 				}
 			}
 
-			// If still no name, try parent
-			if name == "" {
-				name = s.Closest("a[href*='/product/']").AttrOr("title", "")
+			// If still no good name, try parent but filter promo texts
+			if !nameFound {
+				name = strings.TrimSpace(s.Closest("a[href*='/product/']").AttrOr("title", ""))
+				if name != "" && !parser.IsPromoText(name) {
+					nameFound = true
+				}
 			}
 
-			name = strings.TrimSpace(name)
+			// Try to exclude elements with promo badge classes
+			if !nameFound {
+				// Check if element has promo badge classes - if so, skip it
+				hasPromoBadge := s.HasClass("promo") || s.HasClass("badge") ||
+					s.Find(".promo, .badge, [class*='promo'], [class*='badge']").Length() > 0
+				if hasPromoBadge {
+					log.Debug("Skipping element with promo badge", "index", i)
+					return
+				}
+			}
+
 			// Don't skip if we have URL - we can use URL as name fallback
-			if name == "" && product.URL == "" {
+			if !nameFound && product.URL == "" {
 				log.Debug("Skipping element without name or URL", "index", i)
 				return
 			}
-			if name != "" {
+			if nameFound {
 				product.Name = name
 				log.Debug("Found product name", "name", name)
 			} else if product.URL != "" {
@@ -893,28 +1264,13 @@ func (o *Ozoner) parseProductsFromHTML(html string) []models.Product {
 			}
 
 			if priceText != "" {
-				// Clean price text - improved parsing
-				// Remove currency symbols and spaces first
-				priceText = strings.ReplaceAll(priceText, "₽", "")
-				priceText = strings.ReplaceAll(priceText, "руб", "")
-				priceText = strings.ReplaceAll(priceText, " ", "")
-				priceText = strings.ReplaceAll(priceText, "\u00A0", "") // Non-breaking space
-				// Remove everything except digits, comma, and dot
-				priceText = regexp.MustCompile(`[^\d,.]`).ReplaceAllString(priceText, "")
-				// Replace comma with dot for parsing
-				priceText = strings.Replace(priceText, ",", ".", 1)
-				// Remove multiple dots, keep only the last one
-				parts := strings.Split(priceText, ".")
-				if len(parts) > 2 {
-					priceText = strings.Join(parts[:len(parts)-1], "") + "." + parts[len(parts)-1]
-				}
-
-				if price, err := strconv.ParseFloat(priceText, 64); err == nil && price > 0 {
+				// Use CleanPriceText helper for consistent price parsing
+				if price, ok := parser.CleanPriceText(priceText); ok {
 					product.Price = price
 					product.Currency = "RUB"
 					log.Debug("Extracted price", "price", price, "original", priceText)
 				} else {
-					log.Debug("Failed to parse price", "text", priceText, "err", err)
+					log.Debug("Failed to parse price", "text", priceText)
 				}
 			}
 
@@ -1108,20 +1464,41 @@ func (o *Ozoner) parseProductsFromHTML(html string) []models.Product {
 				ID:         ExtractProductIDFromURL(href),
 			}
 
-			// Extract name from link - improved
-			name := strings.TrimSpace(link.Text())
-			if name == "" {
-				name = link.AttrOr("title", "")
+			// Extract name from link - improved with promo text filtering
+			var name string
+			var nameFound bool
+
+			name = strings.TrimSpace(link.Text())
+			if name != "" && !parser.IsPromoText(name) {
+				nameFound = true
 			}
-			if name == "" {
+
+			if !nameFound {
+				name = strings.TrimSpace(link.AttrOr("title", ""))
+				if name != "" && !parser.IsPromoText(name) {
+					nameFound = true
+				}
+			}
+
+			if !nameFound {
 				// Try to get from container with more selectors
-				name = container.Find(".tile-title, [class*='title'], h3, h4, [class*='name'], span[title]").First().Text()
+				name = strings.TrimSpace(container.Find(".tile-title, [class*='title'], h3, h4, [class*='name'], span[title]").First().Text())
+				if name != "" && !parser.IsPromoText(name) {
+					nameFound = true
+				}
 			}
-			if name == "" {
+
+			if !nameFound {
 				// Try aria-label
-				name = link.AttrOr("aria-label", "")
+				name = strings.TrimSpace(link.AttrOr("aria-label", ""))
+				if name != "" && !parser.IsPromoText(name) {
+					nameFound = true
+				}
 			}
-			product.Name = strings.TrimSpace(name)
+
+			if nameFound {
+				product.Name = name
+			}
 
 			// Extract price from container - improved search
 			priceText := container.Find("[class*='price'], .tile-price, .price, [class*='Price'], [class*='cost']").First().Text()
@@ -1134,13 +1511,8 @@ func (o *Ozoner) parseProductsFromHTML(html string) []models.Product {
 				priceText = link.Parent().Siblings().Find("[class*='price'], .price").First().Text()
 			}
 			if priceText != "" {
-				priceText = strings.ReplaceAll(priceText, "₽", "")
-				priceText = strings.ReplaceAll(priceText, "руб", "")
-				priceText = strings.ReplaceAll(priceText, " ", "")
-				priceText = strings.ReplaceAll(priceText, "\u00A0", "")
-				priceText = regexp.MustCompile(`[^\d,.]`).ReplaceAllString(priceText, "")
-				priceText = strings.Replace(priceText, ",", ".", 1)
-				if price, err := strconv.ParseFloat(priceText, 64); err == nil && price > 0 {
+				// Use CleanPriceText helper for consistent price parsing
+				if price, ok := parser.CleanPriceText(priceText); ok {
 					product.Price = price
 					product.Currency = "RUB"
 					log.Debug("Extracted price from link", "price", price)
