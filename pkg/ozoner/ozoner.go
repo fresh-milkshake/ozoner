@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"ozoner/internal/cache"
+	"ozoner/internal/checkpoint"
 	"ozoner/internal/client"
 	"ozoner/internal/models"
 	"ozoner/internal/parser"
@@ -46,6 +48,12 @@ type Config struct {
 
 	// Worker pool configuration
 	WorkerCount int
+
+	// Cache configuration
+	CacheConfig cache.CacheConfig
+
+	// Checkpoint configuration
+	CheckpointConfig checkpoint.CheckpointConfig
 }
 
 // DefaultConfig returns default configuration
@@ -61,16 +69,20 @@ func DefaultConfig() Config {
 			"Accept":          "application/json, text/plain, */*",
 			"Accept-Language": "ru-RU,ru;q=0.9",
 		},
-		WorkerCount: 5,
+		WorkerCount:      5,
+		CacheConfig:      cache.DefaultCacheConfig(),
+		CheckpointConfig: checkpoint.DefaultCheckpointConfig(),
 	}
 }
 
 // Ozoner is the main client for interacting with Ozon
 type Ozoner struct {
-	httpClient    *client.HTTPClient
-	apiClient     *client.APIClient
-	browserClient *client.BrowserClient
-	config        Config
+	httpClient        *client.HTTPClient
+	apiClient         *client.APIClient
+	browserClient     *client.BrowserClient
+	config            Config
+	cache             *cache.Cache
+	checkpointManager *checkpoint.Manager
 }
 
 // New creates a new Ozoner client
@@ -129,12 +141,42 @@ func New(config Config) (*Ozoner, error) {
 		log.Debug("Browser client disabled")
 	}
 
+	// Initialize cache if enabled
+	var cacheInstance *cache.Cache
+	if config.CacheConfig.Enabled {
+		log.Debug("Initializing cache")
+		var err error
+		cacheInstance, err = cache.NewCache(config.CacheConfig)
+		if err != nil {
+			log.Warn("Failed to initialize cache", "err", err)
+			// Don't fail the entire client creation if cache fails
+		} else {
+			log.Info("Cache initialized successfully")
+		}
+	}
+
+	// Initialize checkpoint manager if enabled
+	var checkpointManager *checkpoint.Manager
+	if config.CheckpointConfig.Enabled {
+		log.Debug("Initializing checkpoint manager")
+		var err error
+		checkpointManager, err = checkpoint.NewManager(config.CheckpointConfig)
+		if err != nil {
+			log.Warn("Failed to initialize checkpoint manager", "err", err)
+			// Don't fail the entire client creation if checkpoint manager fails
+		} else {
+			log.Info("Checkpoint manager initialized successfully")
+		}
+	}
+
 	log.Info("Ozoner client created successfully")
 	return &Ozoner{
-		httpClient:    httpClient,
-		apiClient:     apiClient,
-		browserClient: browserClient,
-		config:        config,
+		httpClient:        httpClient,
+		apiClient:         apiClient,
+		browserClient:     browserClient,
+		config:            config,
+		cache:             cacheInstance,
+		checkpointManager: checkpointManager,
 	}, nil
 }
 
@@ -205,23 +247,76 @@ func (o *Ozoner) SearchProducts(ctx context.Context, query string, filters *mode
 		}
 
 		// Convert search results to full products
+		// Check cache for each product and use cached data if available
 		products := make([]models.Product, 0, len(searchResults))
 		for i, result := range searchResults {
-			product := models.Product{
-				ID:           result.ID,
-				Name:         result.Name,
-				Price:        result.Price,
-				OldPrice:     result.OldPrice,
-				Currency:     result.Currency,
-				Rating:       result.Rating,
-				ReviewsCount: result.ReviewsCount,
-				Images:       []string{result.Image},
-				URL:          result.URL,
-				SKU:          result.SKU,
-				InStock:      result.InStock,
+			var product models.Product
+
+			// Check cache first if enabled
+			if o.cache != nil && result.ID != "" && o.cache.HasProduct(result.ID) {
+				cachedProduct, err := o.cache.LoadProduct(result.ID)
+				if err == nil {
+					log.Debug("Using cached product from search", "id", result.ID)
+					product = *cachedProduct
+					// Merge search result data with cached data (search data has priority for basic fields)
+					if product.Name == "" || parser.IsPromoText(product.Name) {
+						if result.Name != "" && !parser.IsPromoText(result.Name) {
+							product.Name = result.Name
+						}
+					}
+					if product.Price == 0 {
+						product.Price = result.Price
+					}
+					if product.URL == "" {
+						product.URL = result.URL
+					}
+					if len(product.Images) == 0 && result.Image != "" {
+						product.Images = []string{result.Image}
+					}
+				} else {
+					// Cache load failed, use search result
+					product = models.Product{
+						ID:           result.ID,
+						Name:         result.Name,
+						Price:        result.Price,
+						OldPrice:     result.OldPrice,
+						Currency:     result.Currency,
+						Rating:       result.Rating,
+						ReviewsCount: result.ReviewsCount,
+						Images:       []string{result.Image},
+						URL:          result.URL,
+						SKU:          result.SKU,
+						InStock:      result.InStock,
+						Attributes:   make(map[string]interface{}),
+					}
+				}
+			} else {
+				// No cache or product not in cache, use search result
+				product = models.Product{
+					ID:           result.ID,
+					Name:         result.Name,
+					Price:        result.Price,
+					OldPrice:     result.OldPrice,
+					Currency:     result.Currency,
+					Rating:       result.Rating,
+					ReviewsCount: result.ReviewsCount,
+					Images:       []string{result.Image},
+					URL:          result.URL,
+					SKU:          result.SKU,
+					InStock:      result.InStock,
+					Attributes:   make(map[string]interface{}),
+				}
 			}
+
 			products = append(products, product)
 			log.Debug("Product converted", "index", i, "id", product.ID, "name", product.Name)
+
+			// Save to cache if enabled and product has ID
+			if o.cache != nil && o.config.CacheConfig.AutoSave && product.ID != "" {
+				if err := o.cache.SaveProduct(&product, "SearchProducts"); err != nil {
+					log.Warn("Failed to save product to cache from search", "id", product.ID, "err", err)
+				}
+			}
 		}
 
 		log.Info("Search completed successfully", "products_count", len(products))
@@ -557,12 +652,30 @@ func (o *Ozoner) searchProductsWithBrowser(ctx context.Context, query string, fi
 
 // GetProduct retrieves detailed information about a product
 func (o *Ozoner) GetProduct(ctx context.Context, productID string) (*models.Product, error) {
+	// Check cache first if enabled
+	if o.cache != nil && o.cache.HasProduct(productID) {
+		log.Debug("Loading product from cache", "id", productID)
+		cachedProduct, err := o.cache.LoadProduct(productID)
+		if err == nil {
+			log.Debug("Product loaded from cache", "id", productID)
+			return cachedProduct, nil
+		}
+		log.Warn("Failed to load product from cache, fetching from API", "id", productID, "err", err)
+	}
+
 	// Get product page from API
 	data, err := o.apiClient.GetProductPage(ctx, productID)
 	if err != nil {
 		// If API fails and browser is available, try browser
 		if o.browserClient != nil {
-			return o.getProductWithBrowser(ctx, productID)
+			product, err := o.getProductWithBrowser(ctx, productID)
+			if err == nil && o.cache != nil && o.config.CacheConfig.AutoSave {
+				// Save to cache
+				if saveErr := o.cache.SaveProduct(product, "GetProduct"); saveErr != nil {
+					log.Warn("Failed to save product to cache", "err", saveErr)
+				}
+			}
+			return product, err
 		}
 		return nil, fmt.Errorf("failed to get product: %w", err)
 	}
@@ -571,6 +684,13 @@ func (o *Ozoner) GetProduct(ctx context.Context, productID string) (*models.Prod
 	product, err := parser.ParseProduct(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse product: %w", err)
+	}
+
+	// Save to cache if enabled
+	if o.cache != nil && o.config.CacheConfig.AutoSave {
+		if err := o.cache.SaveProduct(product, "GetProduct"); err != nil {
+			log.Warn("Failed to save product to cache", "err", err)
+		}
 	}
 
 	return product, nil
@@ -1021,6 +1141,75 @@ func (o *Ozoner) Close() error {
 		return o.browserClient.Close()
 	}
 	return nil
+}
+
+// SaveCheckpoint saves a checkpoint manually
+func (o *Ozoner) SaveCheckpoint(name string, state map[string]interface{}) error {
+	if o.checkpointManager == nil {
+		return fmt.Errorf("checkpoint manager not enabled")
+	}
+
+	cp := &checkpoint.Checkpoint{
+		ID:           name,
+		State:        state,
+		ProcessedIDs: []string{},
+	}
+
+	return o.checkpointManager.Save(cp)
+}
+
+// SaveFullCheckpoint saves a full checkpoint
+func (o *Ozoner) SaveFullCheckpoint(cp *checkpoint.Checkpoint) error {
+	if o.checkpointManager == nil {
+		return fmt.Errorf("checkpoint manager not enabled")
+	}
+
+	return o.checkpointManager.Save(cp)
+}
+
+// LoadCheckpoint loads a checkpoint by name
+func (o *Ozoner) LoadCheckpoint(name string) (*checkpoint.Checkpoint, error) {
+	if o.checkpointManager == nil {
+		return nil, fmt.Errorf("checkpoint manager not enabled")
+	}
+
+	return o.checkpointManager.Load(name)
+}
+
+// ListCheckpoints returns all checkpoints
+func (o *Ozoner) ListCheckpoints() ([]checkpoint.Checkpoint, error) {
+	if o.checkpointManager == nil {
+		return nil, fmt.Errorf("checkpoint manager not enabled")
+	}
+
+	return o.checkpointManager.List()
+}
+
+// GetLatestCheckpoint returns the most recently created checkpoint
+func (o *Ozoner) GetLatestCheckpoint() (*checkpoint.Checkpoint, error) {
+	if o.checkpointManager == nil {
+		return nil, fmt.Errorf("checkpoint manager not enabled")
+	}
+
+	return o.checkpointManager.GetLatest()
+}
+
+// GetCacheStats returns cache statistics
+func (o *Ozoner) GetCacheStats() (cache.Stats, error) {
+	if o.cache == nil {
+		return cache.Stats{}, fmt.Errorf("cache not enabled")
+	}
+
+	return o.cache.GetCacheStats()
+}
+
+// ClearCache clears all cached products
+func (o *Ozoner) ClearCache() error {
+	if o.cache == nil {
+		return fmt.Errorf("cache not enabled")
+	}
+
+	return o.cache.ClearCache()
 }
 
 // ExtractProductIDFromURL extracts product ID from Ozon URL

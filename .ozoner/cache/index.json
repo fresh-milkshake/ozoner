@@ -1,0 +1,202 @@
+{
+  "products": {
+    "1055655784": {
+      "file": "products\\1055655784.json",
+      "size": 6353,
+      "cached_at": "2025-12-08T02:33:03.0446395+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:33:34.3895912+03:00"
+    },
+    "1261281850": {
+      "file": "products\\1261281850.json",
+      "size": 7058,
+      "cached_at": "2025-12-08T02:31:01.2319303+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:31:01.2319303+03:00"
+    },
+    "1363189891": {
+      "file": "products\\1363189891.json",
+      "size": 6440,
+      "cached_at": "2025-12-08T02:32:50.3866538+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:33:33.3881618+03:00"
+    },
+    "1425165639": {
+      "file": "products\\1425165639.json",
+      "size": 6254,
+      "cached_at": "2025-12-08T02:33:12.0649421+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:33:34.3895912+03:00"
+    },
+    "1511909869": {
+      "file": "products\\1511909869.json",
+      "size": 7075,
+      "cached_at": "2025-12-08T02:34:01.8543363+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:34:01.8543363+03:00"
+    },
+    "1677994795": {
+      "file": "products\\1677994795.json",
+      "size": 6466,
+      "cached_at": "2025-12-08T02:31:31.2640243+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:31:31.2640243+03:00"
+    },
+    "1682243344": {
+      "file": "products\\1682243344.json",
+      "size": 7850,
+      "cached_at": "2025-12-08T02:31:59.0044339+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:31:59.0044339+03:00"
+    },
+    "1703884586": {
+      "file": "products\\1703884586.json",
+      "size": 6551,
+      "cached_at": "2025-12-08T02:33:41.8264964+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:33:41.8264964+03:00"
+    },
+    "1748625912": {
+      "file": "products\\1748625912.json",
+      "size": 7076,
+      "cached_at": "2025-12-08T02:31:37.2545731+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:31:37.2545731+03:00"
+    },
+    "183986947": {
+      "file": "products\\183986947.json",
+      "size": 6133,
+      "cached_at": "2025-12-08T02:31:16.4391842+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:31:16.4391842+03:00"
+    },
+    "1967029210": {
+      "file": "products\\1967029210.json",
+      "size": 8081,
+      "cached_at": "2025-12-08T02:32:19.1663399+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:33:33.3725938+03:00"
+    },
+    "1967029357": {
+      "file": "products\\1967029357.json",
+      "size": 7817,
+      "cached_at": "2025-12-08T02:33:32.3712878+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:33:35.4085945+03:00"
+    },
+    "1971047162": {
+      "file": "products\\1971047162.json",
+      "size": 6345,
+      "cached_at": "2025-12-08T02:32:05.1688246+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:32:05.1688246+03:00"
+    },
+    "2099267059": {
+      "file": "products\\2099267059.json",
+      "size": 6216,
+      "cached_at": "2025-12-08T02:31:23.8156276+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:31:23.8156276+03:00"
+    },
+    "2151717086": {
+      "file": "products\\2151717086.json",
+      "size": 6793,
+      "cached_at": "2025-12-08T02:32:25.5114697+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:33:33.3731141+03:00"
+    },
+    "2195815664": {
+      "file": "products\\2195815664.json",
+      "size": 7468,
+      "cached_at": "2025-12-08T02:31:43.7002565+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:31:43.7002565+03:00"
+    },
+    "2286771799": {
+      "file": "products\\2286771799.json",
+      "size": 6821,
+      "cached_at": "2025-12-08T02:33:18.2032996+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:33:34.3989465+03:00"
+    },
+    "2293801760": {
+      "file": "products\\2293801760.json",
+      "size": 5489,
+      "cached_at": "2025-12-08T02:32:34.4017894+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:33:33.3731141+03:00"
+    },
+    "2381768940": {
+      "file": "products\\2381768940.json",
+      "size": 5977,
+      "cached_at": "2025-12-08T02:31:49.9682413+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:31:49.9682413+03:00"
+    },
+    "2468456035": {
+      "file": "products\\2468456035.json",
+      "size": 5415,
+      "cached_at": "2025-12-08T02:32:42.1003523+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:33:33.3809521+03:00"
+    },
+    "2490581227": {
+      "file": "products\\2490581227.json",
+      "size": 6719,
+      "cached_at": "2025-12-08T02:33:55.6809629+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:33:55.6809629+03:00"
+    },
+    "261949107": {
+      "file": "products\\261949107.json",
+      "size": 7052,
+      "cached_at": "2025-12-08T02:33:24.3586551+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:33:34.3994689+03:00"
+    },
+    "2847571364": {
+      "file": "products\\2847571364.json",
+      "size": 6829,
+      "cached_at": "2025-12-08T02:31:08.6861397+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:31:08.6861397+03:00"
+    },
+    "2917477124": {
+      "file": "products\\2917477124.json",
+      "size": 5435,
+      "cached_at": "2025-12-08T02:33:48.2639384+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:33:48.2639384+03:00"
+    },
+    "3033362306": {
+      "file": "products\\3033362306.json",
+      "size": 7010,
+      "cached_at": "2025-12-08T02:30:47.8650298+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:30:47.8650298+03:00"
+    },
+    "3051735531": {
+      "file": "products\\3051735531.json",
+      "size": 6398,
+      "cached_at": "2025-12-08T02:32:12.9228565+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:33:32.3718467+03:00"
+    },
+    "3153911867": {
+      "file": "products\\3153911867.json",
+      "size": 6226,
+      "cached_at": "2025-12-08T02:30:55.225387+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:30:55.225387+03:00"
+    },
+    "760613937": {
+      "file": "products\\760613937.json",
+      "size": 5811,
+      "cached_at": "2025-12-08T02:32:56.6205788+03:00",
+      "source": "GetProduct",
+      "last_accessed": "2025-12-08T02:33:34.3890158+03:00"
+    }
+  },
+  "total_size": 185158,
+  "total_items": 28
+}
