@@ -6,9 +6,43 @@ repo_name: fresh-milkshake/ozoner
 site_author: fresh-milkshake
 edit_uri: edit/mkdocs/docs/
 theme:
-  name: mkdocs
-  locale: ru
+  name: material
+  language: ru
+  font: false
+  logo: assets/mark.svg
+  favicon: assets/mark.svg
+  palette:
+    scheme: slate
+    primary: custom
+    accent: custom
+  features:
+    - navigation.footer
+    - navigation.top
+    - toc.follow
+    - search.suggest
+    - content.code.copy
+plugins:
+  - search:
+      lang:
+        - ru
+        - en
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - toc:
+      permalink: true
+extra_css:
+  - assets/ozoner.css
+validation:
+  links:
+    anchors: warn
 nav:
-  - Начало работы: index.md
+  - Обзор: index.md
+  - Быстрый старт: start.md
   - Python API: api.md
+  - Фильтры: filters.md
   - CLI и логирование: cli.md
+  - Ошибки и решения: troubleshooting.md
