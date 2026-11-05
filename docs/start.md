@@ -25,6 +25,6 @@ if products:
     write_csv(products, "headphones.csv")
 ```
 
-Каждый вызов открывает временную сессию. Для нескольких карточек используйте [`get_products()`](api.md#product-details), чтобы загрузить их в одной сессии.
+Каждый вызов открывает временную сессию. Для нескольких карточек используйте [`get_products()`](reference.md#ozoner.OzonClient.get_products), чтобы загрузить их в одной сессии.
 
 Дальше можно [выгрузить категорию](api.md#categories), [применить фильтры витрины](filters.md) или [настроить логирование](cli.md#logging).

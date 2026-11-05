@@ -12,7 +12,7 @@ uv run ozoner "техника" --limit 100 --max-pages 20 --log-level DEBUG
 
 ## Ozon вернул HTTP 403 { #http-403 }
 
-Витрина может отклонить запрос к поиску, категории или карточке. Успешный поиск не гарантирует доступ к детальной странице товара. В Python проверяйте `OzonHTTPError.status`. В CLI включите [логирование](cli.md#logging), чтобы увидеть, на каком шаге произошёл отказ.
+Витрина может отклонить запрос к поиску, категории или карточке. Успешный поиск не гарантирует доступ к детальной странице товара. В Python проверяйте [`OzonHTTPError.status`](reference.md#ozoner.OzonHTTPError.status). В CLI включите [логирование](cli.md#logging), чтобы увидеть, на каком шаге произошёл отказ.
 
 ```python
 from ozoner import OzonClient, OzonHTTPError
@@ -25,7 +25,7 @@ except OzonHTTPError as error:
 
 ## Chrome не запускается { #chrome }
 
-Проверьте, что Google Chrome установлен. Если он находится в нестандартном каталоге, укажите путь через `--chrome` в CLI или `OzonClient(chrome_path=...)` в Python. [Установка и первый запрос](start.md).
+Проверьте, что Google Chrome установлен. Если он находится в нестандартном каталоге, укажите путь через [`--chrome`](cli.md#options) в CLI или [`OzonClient(chrome_path=...)`](reference.md#ozoner.OzonClient) в Python. [Установка и первый запрос](start.md).
 
 ## CSV не появился { #csv }
 

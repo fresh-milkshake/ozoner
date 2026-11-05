@@ -22,7 +22,7 @@ uv run ozoner "наушники" --filter "price=1000;10000" --sort price
 
 ## CSV { #csv }
 
-`write_csv()` в Python и CLI используют UTF-8 с BOM и разделитель `;`. Файл содержит поля поисковой выдачи. При ошибке получения данных существующий CSV сохраняется. См. [ошибки экспорта](troubleshooting.md#csv).
+[`write_csv()`](reference.md#ozoner.write_csv) в Python и CLI используют UTF-8 с BOM и разделитель `;`. Файл содержит поля поисковой выдачи. При ошибке получения данных существующий CSV сохраняется. См. [ошибки экспорта](troubleshooting.md#csv).
 
 ## Логирование { #logging }
 
