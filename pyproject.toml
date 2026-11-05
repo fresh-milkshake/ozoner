@@ -14,6 +14,12 @@ ozoner = "ozoner.cli:main"
 
 [dependency-groups]
 dev = ["ruff>=0.15,<1"]
+docs = [
+    "mkdocs==1.6.1",
+    "mkdocs-material==9.7.6",
+    "mkdocstrings-python==2.0.10",
+    "ruff>=0.15,<1",
+]
 
 [build-system]
 requires = ["hatchling>=1.27,<2"]

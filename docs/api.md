@@ -2,6 +2,8 @@
 
 Начните с [установки](start.md). Все методы используют публичную витрину Ozon. Для Chrome вне стандартного каталога передайте `OzonClient(chrome_path=...)`.
 
+Точные сигнатуры, типы и исходники публичных объектов собраны в [справочнике по коду](reference.md).
+
 ## Поиск товаров { #search }
 
 ```python
@@ -12,7 +14,7 @@ products = client.search("наушники", limit=20, max_price=10_000)
 write_csv(products, "headphones.csv")
 ```
 
-`search()` возвращает уникальные товары в порядке витрины. См. [фильтры и сортировку](filters.md), [границы цены](filters.md#local-price) и [лимиты выдачи](troubleshooting.md#fewer-results).
+`search()` возвращает уникальные товары в порядке витрины. См. [сигнатуру метода](reference.md#ozoner.OzonClient.search), [фильтры и сортировку](filters.md) и [лимиты выдачи](troubleshooting.md#fewer-results).
 
 ## Категории { #categories }
 
@@ -24,11 +26,11 @@ print(category.id, category.name)
 write_csv(category.products, "phones.csv")
 ```
 
-`Category` содержит ID, название, URL и товары. `get_category()` принимает параметры исходной ссылки и умеет [заменять фильтры](filters.md#apply) через `filters=`.
+[`Category`](reference.md#ozoner.Category) содержит ID, название, URL и товары. `get_category()` принимает параметры исходной ссылки и умеет [заменять фильтры](filters.md#apply) через `filters=`.
 
 ## Карточки товаров { #product-details }
 
-`get_product()` принимает числовой ID, ссылку Ozon или объект `Product`. `get_products()` обрабатывает уникальные ID в порядке ввода и переиспользует один браузер. Если одна карточка не загрузилась, пакет завершается ошибкой.
+[`get_product()`](reference.md#ozoner.OzonClient.get_product) принимает числовой ID, ссылку Ozon или объект `Product`. [`get_products()`](reference.md#ozoner.OzonClient.get_products) обрабатывает уникальные ID в порядке ввода и переиспользует один браузер. Если одна карточка не загрузилась, пакет завершается ошибкой.
 
 ```python
 from ozoner import OzonHTTPError

@@ -39,4 +39,4 @@ logging.getLogger("ozoner").setLevel(logging.DEBUG)
 
 На уровне `INFO` видны начало операции, статус, число результатов и время. `DEBUG` добавляет номера страниц и ID успешно прочитанных карточек. `WARNING` сообщает об отказах и ошибках чтения. События Ozoner не включают cookie, тело ответа и параметры пагинации.
 
-Собрать документацию локально можно командой `uvx --from mkdocs==1.6.1 --with mkdocs-material==9.7.6 mkdocs build --strict`.
+Собрать документацию локально можно командой `uv run --locked --only-group docs mkdocs build --strict`.

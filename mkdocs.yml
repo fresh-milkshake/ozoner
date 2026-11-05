@@ -9,7 +9,6 @@ theme:
   name: material
   language: ru
   font: false
-  logo: assets/mark.svg
   favicon: assets/mark.svg
   palette:
     scheme: slate
@@ -26,6 +25,19 @@ plugins:
       lang:
         - ru
         - en
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_root_full_path: false
+            show_signature_annotations: true
+            separate_signature: true
+            signature_crossrefs: true
+            show_if_no_docstring: true
+            merge_init_into_class: true
 markdown_extensions:
   - admonition
   - attr_list
@@ -42,7 +54,9 @@ validation:
 nav:
   - Обзор: index.md
   - Быстрый старт: start.md
-  - Python API: api.md
+  - Python API:
+      - Руководство: api.md
+      - Справочник по коду: reference.md
   - Фильтры: filters.md
   - CLI и логирование: cli.md
   - Ошибки и решения: troubleshooting.md
