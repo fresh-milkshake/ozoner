@@ -1,0 +1,14 @@
+site_name: Ozoner
+site_description: Python-клиент публичной витрины Ozon
+site_url: https://fresh-milkshake.github.io/ozoner/
+repo_url: https://github.com/fresh-milkshake/ozoner
+repo_name: fresh-milkshake/ozoner
+site_author: fresh-milkshake
+edit_uri: edit/mkdocs/docs/
+theme:
+  name: mkdocs
+  locale: ru
+nav:
+  - Начало работы: index.md
+  - Python API: api.md
+  - CLI и логирование: cli.md
